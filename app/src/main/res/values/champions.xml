@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="champions_array">
+        <item>Annie</item>
+        <item>Olaf</item>
+        <item>Galio</item>
+        <item>Twisted Fate</item>
+    </string-array>
+</resources>
