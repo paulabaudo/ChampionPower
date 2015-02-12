@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Champion Power</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+    <string name="edit_text_champion_hint">Champion name</string>
+    <string name="button_get_spells">Get spells</string>
+    <string name="getting_spells_for_champion">Getting spells for %s</string>
+
+</resources>
