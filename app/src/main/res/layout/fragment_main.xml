@@ -25,7 +25,8 @@
             android:layout_height="wrap_content"
             android:text="@string/button_get_spells"
             android:id="@+id/button_get_spells"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:enabled="false"/>
 
     </LinearLayout>
 

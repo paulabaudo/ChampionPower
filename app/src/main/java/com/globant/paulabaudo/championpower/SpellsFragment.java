@@ -4,6 +4,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ListFragment;
+import android.text.Editable;
+import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -26,7 +29,6 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -37,7 +39,6 @@ public class SpellsFragment extends ListFragment {
     EditText mEditTextChampion;
     Button mButtonSpells;
     ArrayAdapter mAdapter;
-    String[] mChampions;
     final static String LOG_TAG = SpellsFragment.class.getSimpleName();
 
     public SpellsFragment() {
@@ -48,13 +49,29 @@ public class SpellsFragment extends ListFragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
         wireUpViews(rootView);
-        prepareChampionsArray();
         prepareButton();
+        prepareEditText();
+
         return rootView;
     }
 
-    private void prepareChampionsArray() {
-        mChampions = getResources().getStringArray(R.array.champions_array);
+    private void prepareEditText() {
+        mEditTextChampion.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                mButtonSpells.setEnabled(!TextUtils.isEmpty(s));
+            }
+        });
     }
 
     private void wireUpViews(View rootView) {
@@ -68,7 +85,7 @@ public class SpellsFragment extends ListFragment {
             public void onClick(View v) {
                 String champion = mEditTextChampion.getText().toString();
                 displayToast(champion);
-                fetchReposInQueue(champion);
+                fetchSpellsInQueue(champion);
             }
 
             private void displayToast(String champion) {
@@ -90,10 +107,10 @@ public class SpellsFragment extends ListFragment {
         setListAdapter(mAdapter);
     }
 
-    private void fetchReposInQueue(String champion){
+    private void fetchSpellsInQueue(String champion){
         try {
-            int championId = getChampionId(champion);
-            URL url = constructURLQuery(championId);
+            final String championKey = getChampionKey(champion);
+            URL url = constructURLQuery();
             Request request = new Request.Builder().url(url.toString()).build();
             OkHttpClient client = new OkHttpClient();
             client.newCall(request).enqueue(new Callback() {
@@ -105,7 +122,7 @@ public class SpellsFragment extends ListFragment {
                 @Override
                 public void onResponse(Response response) throws IOException {
                     String responseString = response.body().string();
-                    final List<String> listOfSpells = parseResponse(responseString);
+                    final List<String> listOfSpells = parseResponse(responseString, championKey);
                     getActivity().runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -121,16 +138,48 @@ public class SpellsFragment extends ListFragment {
         }
     }
 
-    private int getChampionId(String champion){
-        int i = 0;
-        while (i < mChampions.length && !champion.toUpperCase().equals(mChampions[i].toUpperCase())){
-            i++;
+    private String getChampionKey(String champion) {
+        // Rule
+        Boolean special = false;
+        String key ="";
+        Character c = champion.charAt(0);
+        key += c.toString().toUpperCase();
+
+        for (int i = 1; i < champion.length(); i++){
+            c = champion.charAt(i);
+            if (c.toString().equals("'") || c.toString().equals(".") || c.toString().equals(" ")){
+                special = true;
+            } else {
+                if (special){
+                    key += c.toString().toUpperCase();
+                    special = false;
+                } else {
+                    key += c.toString();
+                }
+            }
         }
-        i++;
-        return i;
+
+        // Special Cases
+        if (key.equals("Fiddlesticks")){
+            return "FiddleSticks";
+        }
+        if (key.equals("ChoGath")){
+            return "Chogath";
+        }
+        if (key.equals("VelKoz")){
+            return "Velkoz";
+        }
+        if (key.equals("Wukong")){
+            return "MonkeyKing";
+        }
+        if (key.equals("JarvanIv")){
+            return "JarvanIV";
+        }
+
+        return key;
     }
 
-    private URL constructURLQuery(int championId) throws MalformedURLException {
+    private URL constructURLQuery() throws MalformedURLException {
         final String RIOT_BASE_URL = "global.api.pvp.net";
         final String API_PATH = "api";
         final String LOL_PATH = "lol";
@@ -138,8 +187,7 @@ public class SpellsFragment extends ListFragment {
         final String REGION_PATH = "na";
         final String VERSION_PATH = "v1.2";
         final String CHAMPION_PATH = "champion";
-        final String CHAMPION_ID_PATH = Integer.toString(championId);
-        final String ENDPOINT = "?champData=spells";
+        final String ENDPOINT = "?champData=passive,spells";
         final String API_KEY = "&api_key=e1452383-1e5a-4842-a15d-f89568f612af";
         Uri.Builder builder = new Uri.Builder();
         builder.scheme("https").authority(RIOT_BASE_URL).
@@ -148,27 +196,36 @@ public class SpellsFragment extends ListFragment {
                 appendPath(STATIC_PATH).
                 appendPath(REGION_PATH).
                 appendPath(VERSION_PATH).
-                appendPath(CHAMPION_PATH).
-                appendPath(CHAMPION_ID_PATH + ENDPOINT + API_KEY);
+                appendPath(CHAMPION_PATH + ENDPOINT + API_KEY);
         Uri uri = builder.build();
         String uriString = uri.toString().replace("%3F","?");
         uriString = uriString.replace("%3D","=");
         uriString = uriString.replace("%26","&");
+        uriString = uriString.replace("%2C",",");
         Log.d(LOG_TAG, "Built URI: " + uriString);
         return new URL(uriString);
     }
 
-    private List<String> parseResponse(String response){
+    private List<String> parseResponse(String response, String championKey){
+        final String DATA = "data";
         final String SPELLS = "spells";
         final String SPELL_DESCRIPTION = "description";
         final String SPELL_NAME = "name";
+        final String PASSIVE = "passive";
         List<String> spells = new ArrayList<>();
         String spell;
         try {
             JSONObject responseObject = new JSONObject(response);
-            JSONArray spellsArray = responseObject.getJSONArray(SPELLS);
-            JSONObject spellObject;
+            JSONObject dataObject = responseObject.getJSONObject(DATA);
+            JSONObject championObject = dataObject.getJSONObject(championKey);
 
+            JSONObject passiveObject = championObject.getJSONObject(PASSIVE);
+            spell = passiveObject.getString(SPELL_NAME) + ": " +
+                    passiveObject.getString(SPELL_DESCRIPTION);
+            spells.add(spell);
+
+            JSONArray spellsArray = championObject.getJSONArray(SPELLS);
+            JSONObject spellObject;
             for (int i = 0; i < spellsArray.length(); i++){
                 spellObject = spellsArray.getJSONObject(i);
                 spell = spellObject.getString(SPELL_NAME) + ": " +
